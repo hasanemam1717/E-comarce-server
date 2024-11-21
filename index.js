@@ -26,7 +26,21 @@ const dbConnect = async () => {
     console.log("Successfully connected database");
     // get product
     const database = client.db("ecommerce");
+    // All db collection
     const productCollection = database.collection("allProducts");
+    const cartsCollection = database.collection("cartProducts");
+
+    app.get("/carts", async (req, res) => {
+      const cusor = cartsCollection.find();
+      const result = await cusor.toArray();
+      res.send(result);
+    });
+
+    app.post('/carts',async(req,res) =>{
+      const cartItem = req.body
+      const result = await cartsCollection.insertOne(cartItem)
+      res.send(result)
+    })
 
     // Endpoint to get data
     app.get("/products", async (req, res) => {
