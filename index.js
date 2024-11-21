@@ -1,6 +1,6 @@
 const express = require("express");
 const cors = require("cors");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 const app = express();
 const port = process.env.PORT || 5000;
@@ -30,6 +30,15 @@ const dbConnect = async () => {
     const productCollection = database.collection("allProducts");
     const cartsCollection = database.collection("cartProducts");
     const usersCollection = database.collection("usersProducts");
+
+    // admin user related apis
+    app.delete('/users/:id' ,async (req,res) =>{
+      const id = req.params.id;
+      const query = {id :new ObjectId(id)}
+      console.log(query);
+      const result = await usersCollection.deleteOne(query)
+      res.send(result)
+    })
 
     // user related api
     app.post('/users',async(req,res) =>{
