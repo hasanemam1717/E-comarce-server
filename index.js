@@ -31,16 +31,18 @@ const dbConnect = async () => {
     const cartsCollection = database.collection("cartProducts");
 
     app.get("/carts", async (req, res) => {
-      const cusor = cartsCollection.find();
+      const email = req.query.email;
+      const query = { email: email };
+      const cusor = cartsCollection.find(query );
       const result = await cusor.toArray();
       res.send(result);
     });
 
-    app.post('/carts',async(req,res) =>{
-      const cartItem = req.body
-      const result = await cartsCollection.insertOne(cartItem)
-      res.send(result)
-    })
+    app.post("/carts", async (req, res) => {
+      const cartItem = req.body;
+      const result = await cartsCollection.insertOne(cartItem);
+      res.send(result);
+    });
 
     // Endpoint to get data
     app.get("/products", async (req, res) => {
