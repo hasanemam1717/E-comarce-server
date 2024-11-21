@@ -29,6 +29,24 @@ const dbConnect = async () => {
     // All db collection
     const productCollection = database.collection("allProducts");
     const cartsCollection = database.collection("cartProducts");
+    const usersCollection = database.collection("usersProducts");
+
+    // user related api
+    app.post('/users',async(req,res) =>{
+      const user = req.body
+      const query = {email:user?.email}
+      const exestingUser = await usersCollection.findOne(query)
+      if(exestingUser){
+        return res.send({massage:"User already exists.",insertedId:null})
+      }
+      const result = await usersCollection.insertOne(user)
+      res.send(result)
+    })
+    app.get("/users", async (req, res) => {
+      const cusor = usersCollection.find();
+      const result = await cusor.toArray();
+      res.send(result);
+    });
 
     app.get("/carts", async (req, res) => {
       const email = req.query.email;
