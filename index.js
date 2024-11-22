@@ -4,6 +4,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 const app = express();
 const port = process.env.PORT || 5000;
+const jwt = require('jsonwebtoken');
 
 // middleware
 app.use(cors());
@@ -30,6 +31,13 @@ const dbConnect = async () => {
     const productCollection = database.collection("allProducts");
     const cartsCollection = database.collection("cartProducts");
     const usersCollection = database.collection("usersProducts");
+
+       // jwt related api
+       app.post('/jwt', async (req, res) => {
+        const user = req.body;
+        const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
+        res.send({ token });
+      })
 
     // admin user related apis
     app.delete('/users/:id' ,async (req,res) =>{
@@ -65,6 +73,8 @@ const dbConnect = async () => {
       res.send(result)
     })
     app.get("/users", async (req, res) => {
+      
+      console.log(req.headers);
       const cusor = usersCollection.find();
       const result = await cusor.toArray();
       res.send(result);
