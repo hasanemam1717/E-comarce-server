@@ -33,13 +33,26 @@ const dbConnect = async () => {
 
     // admin user related apis
     app.delete('/users/:id' ,async (req,res) =>{
-      const id = req.params.id;
-      const query = {id :new ObjectId(id)}
+      const id = req.params.id
+      console.log("Delete user id" , id);
+      const query = {_id :new ObjectId(id)}
       console.log(query);
       const result = await usersCollection.deleteOne(query)
       res.send(result)
     })
 
+    app.patch('/users/admin/:id',async(req,res)=>{
+      const id = req.params.id
+      const filter = {_id:new ObjectId(id)}
+      const updatedDoc ={
+        $set:{
+          role:"Admin"
+        }
+      }
+      const result = await usersCollection.updateOne(filter,updatedDoc)
+      res.send(result)
+
+    })
     // user related api
     app.post('/users',async(req,res) =>{
       const user = req.body
