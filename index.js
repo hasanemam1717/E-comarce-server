@@ -4,7 +4,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 const app = express();
 const port = process.env.PORT || 5000;
-const jwt = require('jsonwebtoken');
+const jwt = require("jsonwebtoken");
 
 // middleware
 app.use(cors());
@@ -23,68 +23,123 @@ const client = new MongoClient(uri, {
 
 const dbConnect = async () => {
   try {
-    // client.connect();
+    // Issue: `client.connect()` was commented out, preventing database connection.
+    // Fixed: Uncommented `client.connect()` to ensure the database connects properly.
+    await client.connect();
     console.log("Successfully connected database");
-    // get product
+
+    // Collections
     const database = client.db("ecommerce");
-    // All db collection
     const productCollection = database.collection("allProducts");
     const cartsCollection = database.collection("cartProducts");
     const usersCollection = database.collection("usersProducts");
 
-       // jwt related api
-       app.post('/jwt', async (req, res) => {
-        const user = req.body;
-        const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
-        res.send({ token });
-      })
-
-    // admin user related apis
-    app.delete('/users/:id' ,async (req,res) =>{
-      const id = req.params.id
-      console.log("Delete user id" , id);
-      const query = {_id :new ObjectId(id)}
-      console.log(query);
-      const result = await usersCollection.deleteOne(query)
-      res.send(result)
-    })
-
-    app.patch('/users/admin/:id',async(req,res)=>{
-      const id = req.params.id
-      const filter = {_id:new ObjectId(id)}
-      const updatedDoc ={
-        $set:{
-          role:"Admin"
+    // Middleware: Verify JWT
+    const verifyToken = (req, res, next) => {
+      // Issue: Debug log may expose sensitive information.
+      // Fixed: Removed the debug log `console.log("inside verify token")`.
+      if (!req.headers.authorization) {
+        return res.status(401).send({ message: "Unauthorized access" });
+      }
+      const token = req.headers.authorization.split(" ")[1];
+      jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+        if (err) {
+          return res.status(401).send({ message: "Unauthorized access" });
         }
-      }
-      const result = await usersCollection.updateOne(filter,updatedDoc)
-      res.send(result)
+        req.decoded = decoded;
+        next();
+      });
+    };
 
-    })
-    // user related api
-    app.post('/users',async(req,res) =>{
-      const user = req.body
-      const query = {email:user?.email}
-      const exestingUser = await usersCollection.findOne(query)
-      if(exestingUser){
-        return res.send({massage:"User already exists.",insertedId:null})
+    // Middleware: Verify Admin
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      const isAdmin = user?.role === "admin";
+      if (!isAdmin) {
+        return res.status(403).send({ message: "Forbidden access" });
       }
-      const result = await usersCollection.insertOne(user)
-      res.send(result)
-    })
-    app.get("/users", async (req, res) => {
-      
-      console.log(req.headers);
-      const cusor = usersCollection.find();
-      const result = await cusor.toArray();
+      next();
+    };
+
+    // JWT-related API
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "1h",
+      });
+      res.send({ token });
+    });
+
+    // Admin-related APIs
+    app.delete("/users/:id", verifyToken, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      // Issue: No check if `id` is valid before passing to `ObjectId`.
+      // Fixed: Added validation to ensure `id` is a valid ObjectId.
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).send({ message: "Invalid user ID" });
+      }
+      const query = { _id: new ObjectId(id) };
+      const result = await usersCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    app.get("/users/admin/:email", verifyToken, verifyAdmin, async (req, res) => {
+      const email = req.params.email;
+      if (email !== req.decoded.email) {
+        return res.status(403).send({ message: "Forbidden access" });
+      }
+      if (!req.headers.authorization) {
+        return res.status(401).send({ message: "Unauthorized access: No token provided" });
+      }
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+      let admin = false;
+      if (user) {
+        admin = user?.role === "admin";
+      }
+      res.send({ admin });
+    });
+
+    app.patch("/users/admin/:id", verifyToken, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).send({ message: "Invalid user ID" });
+      }
+      const filter = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          role: "Admin",
+        },
+      };
+      const result = await usersCollection.updateOne(filter, updatedDoc);
+      res.send(result);
+    });
+
+    // User-related APIs
+    app.post("/users", async (req, res) => {
+      const user = req.body;
+      const query = { email: user?.email };
+      const existingUser = await usersCollection.findOne(query);
+      if (existingUser) {
+        return res.send({ message: "User already exists.", insertedId: null });
+      }
+      const result = await usersCollection.insertOne(user);
+      res.send(result);
+    });
+
+    app.get("/users", verifyToken, async (req, res) => {
+      const cursor = usersCollection.find();
+      const result = await cursor.toArray();
       res.send(result);
     });
 
     app.get("/carts", async (req, res) => {
       const email = req.query.email;
       const query = { email: email };
-      const cusor = cartsCollection.find(query );
-      const result = await cusor.toArray();
+      const cursor = cartsCollection.find(query);
+      const result = await cursor.toArray();
       res.send(result);
     });
 
@@ -94,25 +149,28 @@ const dbConnect = async () => {
       res.send(result);
     });
 
-    // Endpoint to get data
+    // Products-related APIs
     app.get("/products", async (req, res) => {
-      const cusor = productCollection.find();
-      const result = await cusor.toArray();
-      console.log(result);
+      const cursor = productCollection.find();
+      const result = await cursor.toArray();
       res.send(result);
     });
+
   } catch (err) {
-    console.log("Error name", err.name, err.massage);
+    // Issue: Error object incorrectly accessed (typo in `massage`).
+    // Fixed: Changed `err.massage` to `err.message`.
+    console.error("Error:", err.name, err.message);
   }
 };
 
 dbConnect();
 
-// api
+// Root API
 app.get("/", (req, res) => {
-  res.send("Hello world");
+  res.send("Hello World");
 });
 
+// Start Server
 app.listen(port, () => {
-  console.log(`server running on port ${port}`);
+  console.log(`Server running on port ${port}`);
 });
