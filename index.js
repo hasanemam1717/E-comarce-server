@@ -33,6 +33,7 @@ const dbConnect = async () => {
     const productCollection = database.collection("allProducts");
     const cartsCollection = database.collection("cartProducts");
     const usersCollection = database.collection("usersProducts");
+    const searchProducts = database.collection("products");
 
     // Middleware: Verify JWT
     const verifyToken = (req, res, next) => {
@@ -85,37 +86,49 @@ const dbConnect = async () => {
       res.send(result);
     });
 
-    app.get("/users/admin/:email", verifyToken, verifyAdmin, async (req, res) => {
-      const email = req.params.email;
-      if (email !== req.decoded.email) {
-        return res.status(403).send({ message: "Forbidden access" });
+    app.get(
+      "/users/admin/:email",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const email = req.params.email;
+        if (email !== req.decoded.email) {
+          return res.status(403).send({ message: "Forbidden access" });
+        }
+        if (!req.headers.authorization) {
+          return res
+            .status(401)
+            .send({ message: "Unauthorized access: No token provided" });
+        }
+        const query = { email: email };
+        const user = await usersCollection.findOne(query);
+        let admin = false;
+        if (user) {
+          admin = user?.role === "admin";
+        }
+        res.send({ admin });
       }
-      if (!req.headers.authorization) {
-        return res.status(401).send({ message: "Unauthorized access: No token provided" });
-      }
-      const query = { email: email };
-      const user = await usersCollection.findOne(query);
-      let admin = false;
-      if (user) {
-        admin = user?.role === "admin";
-      }
-      res.send({ admin });
-    });
+    );
 
-    app.patch("/users/admin/:id", verifyToken, verifyAdmin, async (req, res) => {
-      const id = req.params.id;
-      if (!ObjectId.isValid(id)) {
-        return res.status(400).send({ message: "Invalid user ID" });
+    app.patch(
+      "/users/admin/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({ message: "Invalid user ID" });
+        }
+        const filter = { _id: new ObjectId(id) };
+        const updatedDoc = {
+          $set: {
+            role: "Admin",
+          },
+        };
+        const result = await usersCollection.updateOne(filter, updatedDoc);
+        res.send(result);
       }
-      const filter = { _id: new ObjectId(id) };
-      const updatedDoc = {
-        $set: {
-          role: "Admin",
-        },
-      };
-      const result = await usersCollection.updateOne(filter, updatedDoc);
-      res.send(result);
-    });
+    );
 
     // User-related APIs
     app.post("/users", async (req, res) => {
@@ -156,6 +169,32 @@ const dbConnect = async () => {
       res.send(result);
     });
 
+    // products search related
+    app.get("/allProducts", async (req, res) => {
+      const { title, sort, category, brand } = req.query;
+      const query = {};
+      if (title) {
+        query.title = { $regex: title, $options: "i" };
+      }
+      if (category) {
+        query.category = { $regex: category, $options: "i" };
+      }
+      if (brand) {
+        query.brand = { $regex: brand, $options: "i" };
+      }
+      const productInformation = await searchProducts
+        .find({}, { projection: { category: 1, brand: 1 } })
+        .toArray();
+      const totalProducts = await searchProducts.countDocuments(query);
+      const brands = [...new Set(productInformation.map((p) => p.brand))];
+      const categorys = [...new Set(productInformation.map((p) => p.category))];
+      const sorting = sort === "asc" ? 1 : -1;
+      const result = await searchProducts
+        .find(query)
+        .sort({ sort: sorting })
+        .toArray();
+      res.send({result, brands,sorting, categorys, totalProducts});
+    });
   } catch (err) {
     // Issue: Error object incorrectly accessed (typo in `massage`).
     // Fixed: Changed `err.massage` to `err.message`.
