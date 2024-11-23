@@ -171,7 +171,7 @@ const dbConnect = async () => {
 
     // products search related
     app.get("/allProducts", async (req, res) => {
-      const { title, sort, category, brand } = req.query;
+      const { title, sort, category, brand,page=1,limit=9 } = req.query;
       const query = {};
       if (title) {
         query.title = { $regex: title, $options: "i" };
@@ -189,8 +189,12 @@ const dbConnect = async () => {
       const brands = [...new Set(productInformation.map((p) => p.brand))];
       const categorys = [...new Set(productInformation.map((p) => p.category))];
       const sorting = sort === "asc" ? 1 : -1;
+      const pageNum = Number(page)
+      const limitNum = Number(limit)
       const result = await searchProducts
         .find(query)
+        .skip((pageNum-1)*limitNum)
+        .limit(limitNum)
         .sort({ sort: sorting })
         .toArray();
       res.send({result, brands,sorting, categorys, totalProducts});
