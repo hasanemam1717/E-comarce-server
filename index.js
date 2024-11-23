@@ -30,7 +30,7 @@ const dbConnect = async () => {
 
     // Collections
     const database = client.db("ecommerce");
-    const productCollection = database.collection("allProducts");
+    const productCollection = database.collection("products");
     const cartsCollection = database.collection("cartProducts");
     const usersCollection = database.collection("usersProducts");
     const searchProducts = database.collection("products");
